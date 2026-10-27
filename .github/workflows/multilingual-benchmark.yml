@@ -1,0 +1,41 @@
+name: Multilingual Handwriting Benchmark
+
+on:
+  push:
+    paths:
+      - 'experiments/001-multilingual/**'
+      - 'handwriting-notes/**'
+      - '.github/workflows/multilingual-benchmark.yml'
+  workflow_dispatch:
+
+jobs:
+  prepare-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Python unit tests
+        run: python -m unittest discover -s handwriting-notes/tests -v
+      - name: Pagepack — all 5 languages
+        shell: bash
+        run: |
+          set -euo pipefail
+          for lang in ru en fr ar ja; do
+            python handwriting-notes/scripts/pagepack.py prepare "experiments/001-multilingual/source/${lang}.txt" --out "experiments/001-multilingual/build/${lang}" --layout single_column --mode precision --max-chars 1300
+            python handwriting-notes/scripts/pagepack.py verify "experiments/001-multilingual/build/${lang}"
+          done
+      - name: Check 500-character Russian source
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path('experiments/001-multilingual/source/ru.txt').read_text(encoding='utf-8')
+          assert len(s) == 500, f"expected 500 Unicode codepoints, got {len(s)}"
+          print("Russian source: 500 characters")
+          PY
+      - name: Upload reproducible pagepacks
+        uses: actions/upload-artifact@v4
+        with:
+          name: multilingual-pagepacks
+          path: experiments/001-multilingual/build/
